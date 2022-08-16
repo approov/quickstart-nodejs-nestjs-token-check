@@ -14,6 +14,8 @@ import { ApproovTokenBindingMiddleware } from './middleware/approov-token-bindin
 
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {
+    // Ensure that the ApproovTokenMiddleware is always the first one to be
+    // executed. For example, do not execute a rate limiter Middleware first.
     consumer.apply(ApproovTokenMiddleware).forRoutes('*')
     consumer.apply(ApproovTokenBindingMiddleware).exclude('/auth/(.*)').forRoutes('*')
   }

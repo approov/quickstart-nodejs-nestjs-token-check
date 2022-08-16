@@ -13,6 +13,8 @@ import { ApproovTokenMiddleware } from './middleware/approov-token.middleware';
 
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {
+    // Ensure that the ApproovTokenMiddleware is always the first one to be
+    // executed. For example, do not execute a rate limiter Middleware first.
     consumer.apply(ApproovTokenMiddleware).forRoutes('*');
   }
 }

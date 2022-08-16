@@ -141,6 +141,8 @@ import { ApproovTokenMiddleware } from './middleware/approov-token.middleware';
 
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {
+    // Ensure that the ApproovTokenMiddleware is always the first one to be
+    // executed. For example, do not execute a rate limiter Middleware first.
     consumer.apply(ApproovTokenMiddleware).forRoutes('*')
   }
 }
@@ -148,6 +150,7 @@ export class AppModule {
 
 This enables the Approov token check for all your API endpoints. While its possible to enable Approov in a per endpoint basis we strongly recommend you to not do so, unless you have an application consuming the API endpoint that cannot be protected with the Approov SDK. Billing shouldn't be also a concern on the decision process for the number of API endpoints to be protected with Approov, because you are billed based on the number of monthly active devices, not on the the number of API requests made or API endpoints protected.
 
+The *ApproovTokenMiddleware* should be the first one to be execute because it's establishing if you can trust in the incoming request as one coming from **what** your API backend expects, a genuine and unmodified version of your mobile app that is running in a trusted device, where a MitM attack is not being carried out. You don't want to waste your API server resources with processing API requests from untrustworthy sources, like bots and one of API requests made with tools like cURL, Postman and others.
 
 A full working example for a simple Hello World server can be found at [src/approov-protected-server/token-check](/src/approov-protected-server/token-check).
 
