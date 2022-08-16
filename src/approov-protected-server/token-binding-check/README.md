@@ -82,11 +82,11 @@ The reason you got a `401` is because the Approoov token isn't provided in the h
 
 Finally, you can test that the Approov integration example works as expected with this [Postman collection](/TESTING.md#testing-with-postman) or with some cURL requests [examples](/TESTING.md#testing-with-curl).
 
-### API Abuse BLocked
+### API Abuse Blocked
 
 Do you know what happens when you have a user that had is username and password breached in another service he uses? Attackers in possession of his breached credentials may try to see if he has an account in your service with the same password via automated scripts. Are you aware of the possible consequences for your users and for your business when an attacker finds a positive match and decides to compromise the user account and/or take it over, thus locking-out the user from being able to use it?
 
-Are you ready to stop this attacks? No, rate limiting is not enough, because it only makes the attack slower, and if your API server returns a response header with the current rare limit, then the attacker can very easily work around your rate limiter by auto throttling down itself to stay under such rate limits. If your API server doesn't return that header it only slows down the attack, because the attacker will automate his bot to make the API requests to your API backend at a very slow rate, thus staying under the rate limits, and often they distribute the attack from dozens or hundreds of different IPs, therefore rendering rate limiters a less effective security solution against such attacks.
+Are you ready to stop this attacks? No, rate limiting is not enough, because it only makes the attack slower, and if your API server returns a response header with the current rate limit, then the attacker can very easily work around your rate limiter by auto throttling down itself to stay under such rate limits. If your API server doesn't return the current rate limit header then it only slows down the attack, because the attacker will automate his bot to make the API requests to your API backend at a very slow rate, thus staying under the undisclosed rate limits, and often they distribute the attack from dozens or hundreds of different IPs, therefore rendering rate limiters a less effective security solution against such attacks.
 
 Lets' imagine that such user as the username `john` and password `changeme` on the data-breach the attacker had access, therefore all he needs to do to know if John uses the same credentials on your service is to just issue a `cURL` request to the `/auth/login` endpoint and see if a `200` response is returned:
 
