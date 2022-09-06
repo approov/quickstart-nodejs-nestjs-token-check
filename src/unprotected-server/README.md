@@ -32,7 +32,9 @@ The server answers to requests on the endpoint `/` with the message:
 {"message": "Hello, World!"}
 ```
 
-It also answers to the endpoint `auth/login` and `/profile` to show how to access an endpoint behind user authentication, that is not protected to only be abused by bots and attackers. Bots can query the `/auth/login` for trying out user enumeration, and the `/profile` endpoint can be easily used with a stolen Authorization token, because the NestJS serve have no way to distinguish API requests from un-trusted sources the ones of the genuine and unmodified versions of the applications it was built to serve, but we fix this with the Approov integration.
+It also answers to the endpoint `auth/login` and `/profile` to show how to access an endpoint behind user authentication, that is not protected against being abused by bots and attackers. User enumeration attacks can be easily carried out on the `/auth/login` endpoint for trying out user credentials from a breached database, and the `/profile` endpoint can be easily used with a stolen Authorization token.
+
+This attacks are possible because the NestJS server has no way to know that **what** is making the request is indeed a genuine and unmodified version of the applications that is allowed to use it, and not from an bot, or from one of requests made with cURL or a tool in the likes of Postman. As it stands now the API requests can originate from any source, trusted or not, that the API server will fulfill them, provided they are well formed, but we will fix this with the Approov integration.
 
 [TOC](#toc---table-of-contents)
 
@@ -81,7 +83,9 @@ Keep-Alive: timeout=5
 
 ### API Abuse Allowed
 
-Do you know what happens when you have a user that had is username and password breached in another service he uses, and an attacker in possession of his breached credentials tries to see if he has an account in your service with the same password?
+Do you know what happens when you have a user that had is username and password breached in another service he uses? Attackers in possession of his breached credentials may try to see if he has an account in your service with the same password via automated scripts. Are you aware of the possible consequences for your users and for your business when an attacker finds a positive match and decides to compromise the user account and/or take it over, thus locking-out the user from being able to use it?
+
+Are you ready to stop this attacks? No, rate limiting is not enough, because it only makes the attack slower, and if your server returns the current rate limit in the response header, then the attacker can very easily work around your rate limiter. If your server doesn't return that header it only slows down the attack, because the attacker can automate his bot to use very slow rates of requests against your server, and often they distribute the attack from dozens or hundreds of different IPs.
 
 Lets' imagine that such user as the username `john` and password `changeme` on the data-breach the attacker had access, therefore all he needs to do to know if John uses the same credentials on your service is to just issue a `cURL` request to the `/auth/login` endpoint and see if a `200` response is returned:
 
