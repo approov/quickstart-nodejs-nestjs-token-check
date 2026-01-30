@@ -8,26 +8,26 @@ This project provides a server-side example of Approov token verification for a 
  - `/token-double-binding` - requires a valid Approov token which is bound to two header values.
 
 1. **JWT Approov Token validation (signature + expiry)** is implemented in
-   [ApproovService.verifyApproovToken + validateExpiration](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/php-quickstart/ApproovApplication.php#L132-L188).
+   [ApproovService.verifyApproovToken](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L129-L138).
    It verifies the HS256 signature and rejects tokens that are missing or past `exp`.
 
 2. **Token binding (pay + hash)** is handled by
-   [ApproovService.isBindingValid + hashBase64Url](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/php-quickstart/ApproovApplication.php#L160-L173).
+   [ApproovService.isBindingValid + hashBase64Url](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L164-L176).
    It computes `base64url(sha256(binding_value))` and compares it to `pay`.
 
 3. **Middleware enforcement** is done by
-   [ApproovTokenVerifierMiddleware.use](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/php-quickstart/ApproovApplication.php#L202-L246).
+   [ApproovTokenVerifierMiddleware.use](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L196-L223).
    Requests without a valid token/binding are rejected with 401.
 
 4. **Binding value selection (what gets hashed)** is in
-   [ApproovService.extractBindingValue](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/php-quickstart/ApproovApplication.php#L147-L158).
+   [ApproovService.extractBindingValue](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L151-L162).
    It uses the headers configured in `PROTECTED_ROUTES` (currently `Authorization` for single binding, or `Authorization` + `Content-Digest` for double binding).
 
 5. **Protected route requirements** are defined in
-   [PROTECTED_ROUTES](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/php-quickstart/ApproovApplication.php#L58-L62).
+   [PROTECTED_ROUTES](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L55-L59).
 
 6. **Protected routes are registered** in
-   [AppModule.configure](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/php-quickstart/ApproovApplication.php#L332-L341).
+   [AppModule.configure](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L321-L329).
 
 ## Approov Token Verification Flow
 
@@ -249,7 +249,7 @@ curl -X GET http://localhost:8080/approov-state       # check current state
 * Build Tool: npm 11.6.2
 ```
 
-If you encounter any problems while following this guide, or have any other concerns, please let us know by opening an issue [here](https://github.com/approov/quickstart-java-spring-token-check/issues) and we will be happy to assist you.
+If you encounter any problems while following this guide, or have any other concerns, please let us know by opening an issue [here](https://github.com/approov/quickstart-nodejs-nestjs-token-check/issues) and we will be happy to assist you.
 
 ## Useful Links
 

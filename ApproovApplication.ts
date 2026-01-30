@@ -135,7 +135,17 @@ class ApproovService {
       throw new Error('Approov token payload is invalid.');
     }
 
-    return payload as ApproovTokenPayload;
+    const claims = payload as ApproovTokenPayload;
+    if (typeof claims.exp !== 'number' || !Number.isFinite(claims.exp)) {
+      throw new Error('Approov token exp claim is missing.');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (claims.exp <= now) {
+      throw new Error('Approov token has expired.');
+    }
+
+    return claims;
   }
 
   extractBindingValue(route: ProtectedRouteConfig, request: Request): string | null {
