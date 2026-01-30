@@ -343,7 +343,7 @@ class AppModule implements NestModule {
 }
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { logger: ['log', 'warn', 'error'] });
+  const app = await NestFactory.create(AppModule, { logger: ['log', 'error'] });
   await app.listen(HTTP_PORT);
 
   const logger = new Logger('Bootstrap');
