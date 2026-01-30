@@ -39,11 +39,8 @@ const normalizePath = (path: string): string => {
   return trimmed.replace(/\/+$/, '');
 };
 
-const decodeBase64Url = (value: string): Buffer => {
-  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
-  return Buffer.from(padded, 'base64');
-};
+const decodeBase64Url = (value: string): Buffer =>
+  Buffer.from(value, 'base64url');
 
 const toBase64Url = (value: string): string =>
   value.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
@@ -132,14 +129,11 @@ class ApproovService {
   verifyApproovToken(token: string): ApproovTokenPayload {
     const payload = jwt.verify(token, this.approovSecret, {
       algorithms: ['HS256'],
-      ignoreExpiration: true,
     });
 
     if (typeof payload !== 'object' || payload === null) {
       throw new Error('Approov token payload is invalid.');
     }
-
-    this.validateExpiration(payload);
 
     return payload as ApproovTokenPayload;
   }
@@ -168,23 +162,7 @@ class ApproovService {
   }
 
   hashBase64Url(value: string): string {
-    const digest = createHash('sha256').update(value, 'utf8').digest('base64');
-    return toBase64Url(digest);
-  }
-
-  private validateExpiration(payload: JwtPayload): void {
-    if (payload.exp === undefined || payload.exp === null) {
-      throw new Error('Approov token missing expiration.');
-    }
-
-    const expSeconds = Number(payload.exp);
-    if (Number.isNaN(expSeconds)) {
-      throw new Error('Approov token expiration is invalid.');
-    }
-
-    if (Date.now() >= expSeconds * 1000) {
-      throw new Error('Approov token expired.');
-    }
+    return createHash('sha256').update(value, 'utf8').digest('base64url');
   }
 
   private loadApproovSecret(): Buffer {
