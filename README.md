@@ -7,6 +7,8 @@ This project provides a server-side example of Approov token verification for a 
  - `/token-binding` - requires a valid Approov token which is bound to a header value.
  - `/token-double-binding` - requires a valid Approov token which is bound to two header values.
 
+In this example, Approov token check is implemented in `ApproovApplication.ts`. The responsibilities break down as follows:
+
 1. **JWT Approov Token validation (signature + expiry)** is implemented in
    [ApproovService.verifyApproovToken](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L129-L149).
    It verifies the HS256 signature and rejects tokens that are missing or past `exp`.
