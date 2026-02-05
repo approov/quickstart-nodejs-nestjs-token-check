@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import 'reflect-metadata';
-import { createHash } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 import {
   Controller,
   Get,
@@ -23,7 +23,8 @@ const parsedPort = Number.parseInt(process.env.HTTP_PORT ?? '8080', 10);
 const HTTP_PORT = Number.isNaN(parsedPort) ? 8080 : parsedPort;
 const APPROOV_HEADER = 'Approov-Token';
 const AUTH_HEADER = 'Authorization';
-const DIGEST_HEADER = 'Content-Digest';
+const SESSION_ID_HEADER = 'SessionId';
+const REQUIRED_SECRET_PLACEHOLDER = 'approov_base64url_secret_here';
 
 const hasText = (value: string | undefined | null): value is string =>
   typeof value === 'string' && value.trim().length > 0;
@@ -42,10 +43,24 @@ const normalizePath = (path: string): string => {
 const decodeBase64Url = (value: string): Buffer =>
   Buffer.from(value, 'base64url');
 
-const toBase64Url = (value: string): string =>
+const normalizeBase64Url = (value: string): string =>
   value.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
-const normalizeBase64Url = (value: string): string => toBase64Url(value.trim());
+const isValidBase64Url = (value: string): boolean => {
+  const trimmed = value.trim();
+  if (!/^[A-Za-z0-9_-]+={0,2}$/.test(trimmed)) {
+    return false;
+  }
+  if (trimmed.length % 4 === 1) {
+    return false;
+  }
+  const normalized = normalizeBase64Url(trimmed);
+  const decoded = Buffer.from(trimmed, 'base64url');
+  if (decoded.length === 0) {
+    return false;
+  }
+  return decoded.toString('base64url') === normalized;
+};
 
 interface ProtectedRouteConfig {
   readonly path: string;
@@ -55,7 +70,7 @@ interface ProtectedRouteConfig {
 const PROTECTED_ROUTES: readonly ProtectedRouteConfig[] = [
   { path: '/token-check', bindingHeaders: [] },
   { path: '/token-binding', bindingHeaders: [AUTH_HEADER] },
-  { path: '/token-double-binding', bindingHeaders: [AUTH_HEADER, DIGEST_HEADER] },
+  { path: '/token-double-binding', bindingHeaders: [AUTH_HEADER, SESSION_ID_HEADER] },
 ];
 
 const PROTECTED_ROUTE_MAP = new Map(
@@ -66,8 +81,16 @@ interface ApproovTokenPayload extends JwtPayload {
   pay?: string;
 }
 
+interface ApproovState {
+  approovEnabled: boolean;
+  tokenBindingEnabled: boolean;
+}
+
 interface ApproovRequest extends Request {
   approovTokenClaims?: ApproovTokenPayload;
+  approovSummary?: string;
+  approovRequiredHeaders?: string[];
+  approovState?: ApproovState;
 }
 
 @Injectable()
@@ -81,11 +104,22 @@ class ApproovService {
     this.approovSecret = this.loadApproovSecret();
   }
 
-  statePayload(): Record<string, boolean> {
+  statePayload(): ApproovState {
     return {
       approovEnabled: this.approovEnabled,
       tokenBindingEnabled: this.tokenBindingEnabled,
     };
+  }
+
+  requiredHeaders(route: ProtectedRouteConfig): string[] {
+    if (!this.approovEnabled) {
+      return [];
+    }
+    const headers = [APPROOV_HEADER];
+    if (this.tokenBindingEnabled) {
+      headers.push(...route.bindingHeaders);
+    }
+    return headers;
   }
 
   infoPayload(details: string, extra?: Record<string, unknown>): Record<string, unknown> {
@@ -96,24 +130,24 @@ class ApproovService {
     };
   }
 
-  enableApproov(): Record<string, boolean> {
+  enableApproov(): ApproovState {
     this.approovEnabled = true;
     this.tokenBindingEnabled = true;
     return this.statePayload();
   }
 
-  disableApproov(): Record<string, boolean> {
+  disableApproov(): ApproovState {
     this.approovEnabled = false;
     this.tokenBindingEnabled = false;
     return this.statePayload();
   }
 
-  enableTokenBinding(): Record<string, boolean> {
+  enableTokenBinding(): ApproovState {
     this.tokenBindingEnabled = true;
     return this.statePayload();
   }
 
-  disableTokenBinding(): Record<string, boolean> {
+  disableTokenBinding(): ApproovState {
     this.tokenBindingEnabled = false;
     return this.statePayload();
   }
@@ -153,9 +187,14 @@ class ApproovService {
       return '';
     }
 
-    const values = route.bindingHeaders.map((header) => request.get(header));
-    if (values.some((value) => !hasText(value))) {
-      return null;
+    const values: string[] = [];
+    for (const header of route.bindingHeaders) {
+      const value = request.get(header);
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      if (!hasText(trimmed)) {
+        return null;
+      }
+      values.push(trimmed);
     }
 
     return values.join('');
@@ -167,23 +206,86 @@ class ApproovService {
       return false;
     }
 
-    const computed = this.hashBase64Url(bindingValue);
-    return normalizeBase64Url(expected) === computed;
+    const computed = this.hashBase64(bindingValue);
+    const trimmedExpected = expected.trim();
+    if (trimmedExpected.length !== computed.length) {
+      return false;
+    }
+    return timingSafeEqual(Buffer.from(trimmedExpected), Buffer.from(computed));
   }
 
-  hashBase64Url(value: string): string {
-    return createHash('sha256').update(value, 'utf8').digest('base64url');
+  hashBase64(value: string): string {
+    return createHash('sha256').update(value, 'utf8').digest('base64');
   }
 
   private loadApproovSecret(): Buffer {
     const rawSecret = process.env.APPROOV_BASE64URL_SECRET;
+    const trimmedSecret = rawSecret?.trim();
 
-    if (!hasText(rawSecret)) {
-      this.logger.error('APPROOV_BASE64URL_SECRET environment variable is not set');
-      throw new Error('APPROOV_BASE64URL_SECRET environment variable is not set');
+    if (!hasText(trimmedSecret) || trimmedSecret === REQUIRED_SECRET_PLACEHOLDER) {
+      this.logger.error('Required secret is not set');
+      throw new Error('Required secret is not set');
     }
 
-    return decodeBase64Url(rawSecret.trim());
+    if (!isValidBase64Url(trimmedSecret)) {
+      this.logger.error('Approov secret is invalid');
+      throw new Error('Approov secret is invalid');
+    }
+
+    return decodeBase64Url(trimmedSecret);
+  }
+}
+
+@Injectable()
+class HttpRequestLoggingMiddleware implements NestMiddleware {
+  private readonly logger = new Logger('HttpRequest');
+
+  constructor(private readonly approovService: ApproovService) {}
+
+  use(req: Request, res: Response, next: NextFunction): void {
+    res.on('finish', () => {
+      const status = res.statusCode;
+      if (status !== 200 && status !== 401) {
+        return;
+      }
+
+      const request = req as ApproovRequest;
+      const path = normalizePath(req.path ?? req.originalUrl ?? '/');
+      const routeConfig = PROTECTED_ROUTE_MAP.get(path);
+      const state = request.approovState ?? this.approovService.statePayload();
+      const requiredHeaders =
+        request.approovRequiredHeaders ??
+        (routeConfig && state.approovEnabled
+          ? this.approovService.requiredHeaders(routeConfig)
+          : []);
+      const summary =
+        request.approovSummary ??
+        (!routeConfig
+          ? 'unprotected'
+          : !state.approovEnabled
+            ? 'approov_disabled'
+            : status === 401
+              ? 'approov_failed:unknown'
+              : 'approov_ok');
+      const ip = req.ip ?? req.socket.remoteAddress ?? '';
+      const port = req.socket.localPort ?? HTTP_PORT;
+
+      const logPayload = {
+        summary,
+        method: req.method,
+        path,
+        status,
+        ip,
+        port,
+        approovEnabled: state.approovEnabled,
+        tokenBindingEnabled: state.tokenBindingEnabled,
+        required_headers: requiredHeaders,
+      };
+
+      this.logger.log(`http.request.completed ${JSON.stringify(logPayload)}`);
+    });
+
+    next();
   }
 }
 
@@ -196,39 +298,53 @@ class ApproovTokenVerifierMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
     const path = normalizePath(req.path ?? req.originalUrl ?? '/');
     const routeConfig = PROTECTED_ROUTE_MAP.get(path);
+    const request = req as ApproovRequest;
 
     if (!routeConfig) {
       next();
       return;
     }
 
+    request.approovState = this.approovService.statePayload();
+    request.approovRequiredHeaders = this.approovService.requiredHeaders(routeConfig);
+
     if (!this.approovService.isApproovEnabled()) {
+      request.approovSummary = 'approov_disabled';
       next();
       return;
     }
 
     const approovToken = req.get(APPROOV_HEADER);
     if (!hasText(approovToken)) {
+      request.approovSummary = 'approov_failed:missing_approov_token';
       this.respondUnauthorized(res);
       return;
     }
 
     try {
       const claims = this.approovService.verifyApproovToken(approovToken.trim());
-      (req as ApproovRequest).approovTokenClaims = claims;
+      request.approovTokenClaims = claims;
 
       if (this.approovService.isTokenBindingEnabled() && routeConfig.bindingHeaders.length > 0) {
         const bindingValue = this.approovService.extractBindingValue(routeConfig, req);
-        if (!hasText(bindingValue) || !this.approovService.isBindingValid(bindingValue, claims)) {
+        if (!hasText(bindingValue)) {
+          request.approovSummary = 'approov_failed:missing_binding_header';
+          this.respondUnauthorized(res);
+          return;
+        }
+        if (!this.approovService.isBindingValid(bindingValue, claims)) {
+          request.approovSummary = 'approov_failed:binding_mismatch';
           this.respondUnauthorized(res);
           return;
         }
       }
 
+      request.approovSummary = 'approov_ok';
       next();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`Approov verification failed: ${message}`);
+      request.approovSummary = 'approov_failed:token_verification_failed';
       this.respondUnauthorized(res);
     }
   }
@@ -252,27 +368,27 @@ class ApproovController {
   }
 
   @Get('/approov-state')
-  approovState(): Record<string, boolean> {
+  approovState(): ApproovState {
     return this.approovService.statePayload();
   }
 
   @Post('/approov/enable')
-  enableApproov(): Record<string, boolean> {
+  enableApproov(): ApproovState {
     return this.approovService.enableApproov();
   }
 
   @Post('/approov/disable')
-  disableApproov(): Record<string, boolean> {
+  disableApproov(): ApproovState {
     return this.approovService.disableApproov();
   }
 
   @Post('/token-binding/enable')
-  enableTokenBinding(): Record<string, boolean> {
+  enableTokenBinding(): ApproovState {
     return this.approovService.enableTokenBinding();
   }
 
   @Post('/token-binding/disable')
-  disableTokenBinding(): Record<string, boolean> {
+  disableTokenBinding(): ApproovState {
     return this.approovService.disableTokenBinding();
   }
 
@@ -302,12 +418,12 @@ class ApproovController {
   @Get('/token-double-binding')
   tokenDoubleBinding(@Req() request: Request): Record<string, unknown> {
     const authorization = request.get(AUTH_HEADER);
-    const contentDigest = request.get(DIGEST_HEADER);
+    const sessionId = request.get(SESSION_ID_HEADER);
     return this.approovService.infoPayload(
       "Protected endpoint '/token-double-binding'; dual token binding enforced.",
       {
         authorizationHeaderPresent: hasText(authorization),
-        contentDigestHeaderPresent: hasText(contentDigest),
+        sessionIdHeaderPresent: hasText(sessionId),
       },
     );
   }
@@ -315,10 +431,14 @@ class ApproovController {
 
 @Module({
   controllers: [ApproovController],
-  providers: [ApproovService, ApproovTokenVerifierMiddleware],
+  providers: [ApproovService, ApproovTokenVerifierMiddleware, HttpRequestLoggingMiddleware],
 })
 class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
+    consumer
+      .apply(HttpRequestLoggingMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+
     consumer
       .apply(ApproovTokenVerifierMiddleware)
       .forRoutes(
