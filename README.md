@@ -10,27 +10,27 @@ This project provides a server-side example of Approov token verification for a 
 In this example, Approov token check is implemented in `ApproovApplication.ts`. The responsibilities break down as follows:
 
 1. **JWT Approov Token validation (signature + expiry)** is implemented in
-   [ApproovService.verifyApproovToken](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/ApproovApplication.ts#L163-L182).
+   [ApproovService.verifyApproovToken](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L163-L182).
    It verifies the HS256 signature and rejects tokens that are missing or past `exp`.
 
 2. **Token binding (pay + hash)** is handled by
-   [ApproovService.isBindingValid + hashBase64](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/ApproovApplication.ts#L203-L218).
+   [ApproovService.isBindingValid + hashBase64](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L203-L218).
    It computes `base64(sha256(binding_value))` and constant-time compares it to the `pay` claim.
 
 3. **Middleware enforcement** is done by
-   [ApproovTokenVerifierMiddleware.use](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/ApproovApplication.ts#L298-L349).
+   [ApproovTokenVerifierMiddleware.use](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L298-L349).
    Requests without a valid `Approov-Token`, with invalid/expired tokens, or with missing/mismatched binding headers are rejected with `401`.
 
 4. **Binding value selection (what gets hashed)** is in
-   [ApproovService.extractBindingValue](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/ApproovApplication.ts#L185-L200).
+   [ApproovService.extractBindingValue](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L185-L200).
     It uses the headers configured in `PROTECTED_ROUTES` (currently `Authorization` for single binding, or `Authorization` + `SessionId` for double binding).
 
 5. **Protected route requirements** are defined in
-   [PROTECTED_ROUTES](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/ApproovApplication.ts#L70-L74).
+   [PROTECTED_ROUTES](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L70-L74).
    It declares `/token-check` (no binding headers), `/token-binding` (`Authorization`), and `/token-double-binding` (`Authorization` + `SessionId`).
 
 6. **Protected routes are registered** in
-   [AppModule.configure](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/ApproovApplication.ts#L436-L449).
+   [AppModule.configure](https://github.com/approov/quickstart-nodejs-nestjs-token-check/blob/refactor/nodejs-nestjs-quickstart/ApproovApplication.ts#L436-L449).
 
 ## Approov Token Verification Flow
 
