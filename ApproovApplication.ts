@@ -10,6 +10,7 @@ import {
   Module,
   NestMiddleware,
   NestModule,
+  UnauthorizedException,
   Post,
   Req,
   RequestMethod,
@@ -295,7 +296,7 @@ class ApproovTokenVerifierMiddleware implements NestMiddleware {
 
   constructor(private readonly approovService: ApproovService) {}
 
-  use(req: Request, res: Response, next: NextFunction): void {
+  use(req: Request, _res: Response, next: NextFunction): void {
     const path = normalizePath(req.path ?? req.originalUrl ?? '/');
     const routeConfig = PROTECTED_ROUTE_MAP.get(path);
     const request = req as ApproovRequest;
@@ -317,7 +318,7 @@ class ApproovTokenVerifierMiddleware implements NestMiddleware {
     const approovToken = req.get(APPROOV_HEADER);
     if (!hasText(approovToken)) {
       request.approovSummary = 'approov_failed:missing_approov_token';
-      this.respondUnauthorized(res);
+      this.raiseUnauthorized(next);
       return;
     }
 
@@ -329,12 +330,12 @@ class ApproovTokenVerifierMiddleware implements NestMiddleware {
         const bindingValue = this.approovService.extractBindingValue(routeConfig, req);
         if (!hasText(bindingValue)) {
           request.approovSummary = 'approov_failed:missing_binding_header';
-          this.respondUnauthorized(res);
+          this.raiseUnauthorized(next);
           return;
         }
         if (!this.approovService.isBindingValid(bindingValue, claims)) {
           request.approovSummary = 'approov_failed:binding_mismatch';
-          this.respondUnauthorized(res);
+          this.raiseUnauthorized(next);
           return;
         }
       }
@@ -345,16 +346,12 @@ class ApproovTokenVerifierMiddleware implements NestMiddleware {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`Approov verification failed: ${message}`);
       request.approovSummary = 'approov_failed:token_verification_failed';
-      this.respondUnauthorized(res);
+      this.raiseUnauthorized(next);
     }
   }
 
-  private respondUnauthorized(res: Response): void {
-    res.status(401).json({
-      statusCode: 401,
-      message: 'Unauthorized Access',
-      error: 'Unauthorized',
-    });
+  private raiseUnauthorized(next: NextFunction): void {
+    next(new UnauthorizedException('Unauthorized Access'));
   }
 }
 
